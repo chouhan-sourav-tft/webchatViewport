@@ -1,0 +1,28 @@
+{
+  "name": "go_contact",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "cucumber-js --require cucumber.js --require step-definitions/**/*.js --require features/**/*.js --format json:reports/cucumber_report.json --format html:./reports/cucumber_report.html --format summary --format @cucumber/pretty-formatter --no-strict --publish-quiet ENV=local",
+    "testJenkins": "cucumber-js --require cucumberJenkins.js --require step-definitions/**/*.js --require features/**/*.js --format json:reports/cucumber_report.json --format html:./reports/cucumber_report.html --format summary --format @cucumber/pretty-formatter --no-strict --publish-quiet ENV=jenkins",
+    "report": "node reporter.js",
+    "tag": "npm test -- -t",
+    "jenkinsTag": "npm run testJenkins -- -t"
+  },
+  "keywords": [],
+  "author": "Ankur Choudhary",
+  "license": "ISC",
+  "dependencies": {
+    "@cucumber/cucumber": "^8.2.1",
+    "@cucumber/pretty-formatter": "^1.0.0-alpha.0",
+    "chai": "^4.3.6",
+    "cucumber-html-reporter": "^5.5.0",
+    "dayjs": "^1.11.2",
+    "nodemailer": "^6.7.3",
+    "playwright": "^1.22.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.16.0"
+  }
+}

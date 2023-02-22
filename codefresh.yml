@@ -1,0 +1,145 @@
+version: "1.0"
+
+stages:
+  - "clone"
+  - "build"
+  - "push"
+  - "delete_previous_domains"
+  - "domain"
+  - "test"
+
+steps:
+  clone:
+    title: "Cloning CCaaS-QA-Automated repository"
+    type: "git-clone"
+    repo: "${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}"
+    revision: "${{BRANCH}}"
+    git: "github-goconntact"
+    stage: "clone"
+    credentials:
+      username: "${{GIT_USERNAME}}"
+      password: "${{GIT_TOKEN}}"
+
+  build:
+    title: "Building Docker image"
+    type: "build"
+    image_name: "broadvoice/qa_ccaas"
+    working_directory: "${{clone}}"
+    tag: "${{REVISION}}"
+    no_cache: true
+    no_cf_cache: true
+    dockerfile: "Dockerfile"
+    stage: "build"
+
+  push:
+    stage: "push"
+    type: "push"
+    title: "Publish image on Dockerhub"
+    candidate: "${{build}}"
+    image_name: "broadvoice/qa_ccaas"
+    tag: "${{REVISION}}"
+    registry: "dockerhub"
+    
+  delete_previous_domains:
+    title: "Delete previous domains"
+    image: "broadvoice/qa_setupdomaindata:latest"
+    stage: "delete_previous_domains"
+    commands:
+      - curl --location --request DELETE 'https://${{SERVER_HOST}}/poll/qa/data/delete' --header 'Content-Type:application/json' --header '${{AUTH_QA_API}}'
+
+  domain:
+    title: "Create domain"
+    image: "broadvoice/qa_setupdomaindata:latest"
+    stage: "domain"
+    commands:
+      - _CF_DOMAIN_EMAIL=$(echo '${{DATA}}' | jq -r '.email[]')
+      - _CF_DOMAIN_NAME=$(echo '${{DATA}}' | jq -r '.domainName[]')
+      - UUID=$(curl --location --request POST 'https://${{SERVER_HOST}}/poll/qa/data/init?isApi=false' --header '${{CONTENT_TYPE}}' --header '${{AUTH_QA_API}}' --data-raw '${{DATA}}')
+      - _CF_DOMAIN_UUID=$(echo $UUID | jq -r '.DomainUUID[]')
+      - |-
+          if [ -z "$_CF_DOMAIN_UUID" ]; then
+              echo "Domain already exists"
+              exit 1
+          fi
+      - echo _CF_DOMAIN_UUID=$_CF_DOMAIN_UUID >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+      - echo _CF_DOMAIN_NAME=$_CF_DOMAIN_NAME >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+      - echo _CF_DOMAIN_EMAIL=$_CF_DOMAIN_EMAIL >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+
+  test:
+    title: "Running test"
+    image: "broadvoice/qa_ccaas:${{REVISION}}"
+    stage: "test"
+    commands:
+          - rm -rf /codefresh/volume/testReport
+          - mkdir -p /codefresh/volume/testReport
+          - export _CF_BUILD_ID=$PARENT_CF_BUILD_ID
+          - |-
+              if [ -z "$_CF_BUILD_ID" ]; then 
+                _CF_BUILD_ID=${{CF_BUILD_ID}}
+              fi 
+          - echo _CF_BUILD_ID=$_CF_BUILD_ID >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+          - set +e 
+          - npm run testJenkins --domain_uuid=${{_CF_DOMAIN_UUID}} --domain=${{_CF_DOMAIN_NAME}} --email=${{_CF_DOMAIN_EMAIL}} --host=https://${{SERVER_HOST}}
+          - set -e
+          - export FILEREPORT="/reports/cucumber_report.json"
+          - |-
+            if [ ! -f "$FILEREPORT" ]; then 
+              echo "No file $FILEREPORT."
+              exit 1
+            fi
+          - \cp -ra /reports/* /codefresh/volume/testReport/  
+          - _CF_TYPE=$(echo 'E2E')
+          - _CF_LINK=$(echo "https://s3.${{AWS_DEFAULT_REGION}}.amazonaws.com/${{S3_BUCKETNAME}}/${_CF_BUILD_ID}/qa_ccaas/cucumber_report.html")
+          - echo _CF_TYPE=$_CF_TYPE >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+          - echo _CF_LINK=$_CF_LINK >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+          - |-
+            if grep -Fq '"status": "failed"' "$FILEREPORT"; then
+              echo "Error in $FILEREPORT."
+              _CF_STATUS=$(echo 'FAIL')
+              echo _CF_STATUS=$_CF_STATUS >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+              exit 1
+            fi
+          - _CF_STATUS=$(echo 'PASS')
+          - echo _CF_STATUS=$_CF_STATUS >> ${{CF_VOLUME_PATH}}/env_vars_to_export
+
+
+    hooks:
+      on_success:
+        exec:
+          image: "broadvoice/qa_setupdomaindata:latest"
+          fail_fast: false
+          commands:
+            - curl --location --request DELETE 'https://${{SERVER_HOST}}/poll/qa/data/end' --header '${{CONTENT_TYPE}}' --header '${{AUTH_QA_API}}' --data-raw '{"domainUuid":["${{_CF_DOMAIN_UUID}}"]}'
+
+      on_fail:
+        exec:
+          image: "broadvoice/qa_setupdomaindata:latest"
+          fail_fast: false
+          commands: 
+            - curl --location --request POST 'https://${{SERVER_HOST}}/poll/qa/data/backup' --header '${{CONTENT_TYPE}}' --header '${{AUTH_QA_API}}' --data-raw '{"domainUuid":["${{_CF_DOMAIN_UUID}}"]}'
+      on_finish:
+        steps:
+          exec:
+            image: "amazon/aws-cli"
+            fail_fast: false
+            commands:
+              - aws s3 sync /codefresh/volume/testReport s3://${{S3_BUCKETNAME}}/${_CF_BUILD_ID}/qa_ccaas --acl public-read
+
+          notify_stakeholders:
+                   title: Notify Stakeholders
+                   stage: deploy
+                   type: codefresh-run
+                   arguments:
+                     PIPELINE_ID: 63caba7b13cd42612c3b75a7
+                     VARIABLE:
+                       - NAME=${{CF_PIPELINE_NAME}}
+                       - VERSION=${{BRANCH}}
+                       - STATUS=${{_CF_STATUS}}
+                       - LINK=${{_CF_LINK}}
+                       - HOST=${{SERVER_HOST}}
+                       - TYPE=${{_CF_TYPE}}
+                   on_finish: 
+                     annotations:
+                       set:
+                         - annotations:
+                           - TEST_REPORT: "${{_CF_LINK}}"

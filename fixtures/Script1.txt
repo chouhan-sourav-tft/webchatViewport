@@ -1,0 +1,1 @@
+﻿script.handler = function(fieldValue) { const text = fieldValue|| "";const regex = /EN\d{4}\s*\d{12}\s*[a-zA-Z]{2}\s*/gmi; const result = !!regex.exec(text);const msg = {"true": "Success message","false" : "An error message"}; return {valid: result,message: msg[result]}};

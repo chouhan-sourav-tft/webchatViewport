@@ -1,0 +1,50 @@
+{
+  "userAccount": {
+    "admin": {
+      "username": "admin",
+      "password": "password123",
+      "name": "System Administrator"
+    },
+    "Supervisor_1": {
+      "username": "Supervisor_1",
+      "password": "password123",
+      "name": "Supervisor One"
+    },
+    "Supervisor_2": {
+      "username": "Supervisor_2",
+      "password": "password123",
+      "name": "Supervisor Two"
+    },
+    "Agent_1": {
+      "username": "Agent_1",
+      "password": "password123",
+      "name": "Agent One"
+    },
+    "Agent_2": {
+      "username": "Agent_2",
+      "password": "password123",
+      "name": "Agent Two"
+    },
+    "Agent_3": {
+      "username": "Agent_3",
+      "password": "password123",
+      "name": "Agent Three"
+    },
+    "Agent_4": {
+      "username": "Agent_4",
+      "password": "password123",
+      "name": "Agent Four"
+    },
+    "Agent_5": {
+      "username": "Agent_5",
+      "password": "password123",
+      "name": "Agent Five"
+    }
+  },
+  "userData": {
+		"attachment": "fixtures/a.jpg",
+		"autoDelivery": "fixtures/agentAutoDelivery.json",
+		"attachmentName": "a.jpg",
+		"cssFile": "fixtures/webchat.css"
+	}
+}

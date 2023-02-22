@@ -1,0 +1,15 @@
+/node_modules/*
+
+.DS_Store
+
+fixtures/agentAutoDelivery.json
+
+package-lock.json
+
+reports/*
+
+*.csv
+
+.github
+
+.vscode

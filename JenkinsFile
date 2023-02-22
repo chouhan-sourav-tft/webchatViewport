@@ -1,0 +1,17 @@
+pipeline {
+    agent any 
+    stages {
+        stage('Build') {
+            steps {
+                sh('npm install')
+                echo 'install dependencies' 
+            }
+        }
+    stage('Run Test script') {
+            steps {
+                sh('npm run testJenkins')
+                echo 'run tests' 
+            }
+        }
+    }
+}
